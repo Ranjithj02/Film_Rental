@@ -1,0 +1,198 @@
+-- use film_rental database
+-- created tables are actor, address, category, city, country, customer, film, film_actor, film_category, inventory, language, payment, rental, staff, store.
+
+
+-- 1.	What is the total revenue generated from all rentals in the database? (2 Marks)
+select * from rental;
+select sum(inventory_id) as Total_revenue
+from rental;
+
+-- 2.	How many rentals were made in each month_name? (2 Marks)
+select monthname(rental_date) as Month_name, count(*) as rental_counts
+from rental
+group by monthname(rental_date);
+
+-- 3.	What is the rental rate of the film with the longest title in the database? (2 Marks)
+select * from film;
+select rental_rate, title, length(title)
+from film
+where length(title) =(select max(length(title)) from film);
+-- 4.	What is the average rental rate for films that were taken from the last 30 days from the date("2005-05-05 22:04:30")? (2 Marks)
+select  avg(rental_rate) as Average_rental_rate
+from film f 
+join inventory i
+on f.film_id =i.film_id
+join rental r 
+on i.inventory_id = r.inventory_id
+where rental_date > '2005-05-05 22:04:30'
+limit 30;
+select * from film;
+
+-- 5.	What is the most popular category of films in terms of the number of rentals? (3 Marks)
+
+Select name, count(r.rental_id) as no_of_rentals 
+from category c join film_category fc 
+on c.category_id = fc.category_id 
+join film f on fc.film_id = f.film_id
+join inventory i on f.film_id = i.film_id 
+join rental r 
+on i.inventory_id = r.inventory_id 
+group by 1 
+order by 2 desc;  
+
+-- 6.	Find the longest movie duration from the list of films that have not been rented by any customer. (3 Marks)
+
+	Select title, length 
+    from film 
+    where film_id not in
+	(Select distinct f.film_id from film f join inventory i on f.film_id =  i.film_id 
+	join rental r on i.inventory_id = r.inventory_id) 
+    order by 2 
+    desc limit 1;
+
+-- 7.	What is the average rental rate for films, broken down by category? (3 Marks)
+
+Select name , avg(f.rental_rate) as avg_rental_rate 
+from film f
+join film_category fc 
+on f.film_id = fc.film_id 
+join category c on fc.category_id = c.category_id
+group by name;
+
+-- 8.	What is the total revenue generated from rentals for each actor in the database? (3 Marks)
+
+Select a.actor_id, concat(first_name,' ',last_name) as name , sum(amount) 
+as total_revenue 
+from actor a join film_actor fa 
+on a.actor_id= fa.actor_id 
+join film f 
+on fa.film_id = f.film_id 
+join inventory i on f.film_id = i.film_id 
+join rental r 
+on i.inventory_id = r.inventory_id 
+join payment p 
+on r.rental_id = p.rental_id group by 1; 
+
+-- 9.	Show all the actresses who worked in a film having a "Wrestler" in the description. (3 Marks)
+
+Select distinct concat(first_name, " ", last_name) 
+from actor a 
+join film_actor fa 
+on a.actor_id = fa.actor_id join film f on
+fa.film_id = f.film_id 
+where description like '%Wrestler%';    
+
+-- 10.	Which customers have rented the same film more than once? (3 Marks)
+
+Select concat(c.first_name," ",c.last_name) 
+as customer_name, title, count(*) as times_rented_film
+from film f 
+join inventory i 
+on f.film_id= i.film_id 
+join rental r 
+on i.inventory_id = r.inventory_id
+join customer c 
+on r.customer_id = c.customer_id 
+group by c.customer_id , f.film_id 
+having count(*) >1;
+
+-- 11.	How many films in the comedy category have a rental rate higher than the average rental rate? (3 Marks)
+
+Select count(*) from film f 
+join film_category fc 
+on f.film_id = fc.film_id 
+join category c 
+on fc.category_id = c.category_id 
+where c.name = 'Comedy' 
+and f.rental_rate > (Select avg(rental_rate) from film);
+    
+-- 12.	Which films have been rented the most by customers living in each city? (3 Marks)
+
+ Select cty1 as city, ttl1 as title from 
+(Select l.cty as cty1, l.ttl as ttl1 , rank() over(partition by l.cty order by cnt desc) 
+as rnk 
+from (Select c.city as cty ,f.title as ttl , count(r.rental_id) 
+as cnt
+from city c 
+join address a 
+on c.city_id = a.city_id 
+join customer cu 
+on a.address_id = cu.address_id
+join rental r 
+on cu.customer_id = r.customer_id
+join inventory i 
+on r.inventory_id = i.inventory_id
+join film f 
+on i.film_id = f.film_id
+group by c.city_id, f.film_id) as l) 
+as n
+where rnk = 1;
+
+-- 13.	What is the total amount spent by customers whose rental payments exceed $200? (3 Marks)
+
+ Select concat(first_name," ",last_name) 
+ as name, sum(amount) 
+ as total
+from customer c 
+join rental r on
+c.customer_id = r.customer_id 
+join payment p
+on r.rental_id = p.rental_id 
+group by c.customer_id 
+having  total > 200; 
+
+
+-- 14.	Display the fields which are having foreign key constraints related to the "rental" table. [Hint: using Information_schema] (2 Marks)
+
+Select Column_name,
+Referenced_table_name,
+Referenced_column_name from
+INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+Where REFERENCED_TABLE_SCHEMA = 'film_rental' 
+and TABLE_NAME = 'rental'; 
+
+-- 15.	Create a View for the total revenue generated by each staff member, broken down by store city with the country name. (4 Marks)
+
+CREATE VIEW total_revenue AS 
+Select sum(amount) as revenue_generated, 
+concat(s.first_name," ",s.last_name) as Name, c.city, co.country
+FROM payment p join staff s 
+on p.staff_id = s.staff_id 
+join store st on s.store_id = st.store_id 
+join address a 
+on st.address_id = a.address_id 
+join city c 
+on a.city_id = c.city_id join country co 
+on c.country_id = co.country_id group by 
+s.staff_id, st.store_id, c.city_id, co.country_id;
+
+-- 16.	Create a view based on rental information consisting of visiting_day, customer_name, the title of the film,  no_of_rental_days, the amount paid by the customer along with the percentage of customer spending. (4 Marks)
+
+CREATE VIEW customer_rental AS 
+select dayname(p.payment_date) as day_of_visit ,concat(c.first_name," ",c.last_name) as name, 
+f.title, p.amount,  p.amount*100/sum(p.amount) over (partition by c.customer_id) as percent_of_total_expenditure
+from payment p 
+join rental r on p.rental_id  = r.rental_id join inventory i
+on r.inventory_id = i.inventory_id 
+join film f on i.film_id = f.film_id join 
+customer c on p.customer_id = c.customer_id; 
+
+
+-- 17.	Display the customers who paid 50% of their total rental costs within one day. (5 Marks)
+
+Select date_of_visit, name from( 
+        select p.payment_date as date_of_visit ,concat(c.first_name," ",c.last_name) as name, 
+        f.title, p.amount,  p.amount*100/sum(p.amount) over (partition by c.customer_id) as percent_of_total_expenditure
+        from payment p 
+        join rental r on p.rental_id 
+        = r.rental_id join inventory i
+        on r.inventory_id = i.inventory_id 
+        join film f on i.film_id = f.film_id join 
+        customer c on p.customer_id = c.customer_id) as n
+        group by date_of_visit, name having sum(percent_of_total_expenditure) = 50; 
+        
+        
+
+
+
+     
