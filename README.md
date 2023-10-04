@@ -1,1 +1,1 @@
-# Film_Rental
+# Film_Rental Project in SQL
